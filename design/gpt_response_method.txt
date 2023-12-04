@@ -1,0 +1,37 @@
+uuid: 8dd3163f-b8f4-4075-a082-49577a62343f
+name: Yes when using the ChatGPT API
+timestamp: 2023-12-03T15:23:27.094943-08:00
+----
+Yes, when using the ChatGPT API, you need to include the conversation history 
+(prompt and responses) in the `messages` parameter of each request. You should 
+prepend the new message to the list and for each message, you need to include a 
+`role` (which can be "system", "user", or "assistant") and `content` (the text 
+of the message).
+
+There is no direct support for context identifiers or request reference IDs in 
+the API. You can achieve this by including a system-level instruction in the 
+conversation history. For example, you can include a system message that 
+describes the context or provide a special instruction to refer to the previous 
+message.
+
+Here's an example API call with conversation history:
+
+```
+openai.ChatCompletion.create(
+  model="gpt-3.5-turbo",
+  messages=[
+        {"role": "system", "content": "You are an assistant that speaks like 
+Shakespeare."},
+        {"role": "user", "content": "tell me a joke"},
+        {"role": "assistant", "content": "Why did the chicken cross the road?"},
+        {"role": "user", "content": "I don't know, why did the chicken cross 
+the road?"}
+    ]
+)
+```
+
+In the above example, the conversation history is included in the `messages` 
+parameter, and each message includes a role (system, user, or assistant) and 
+the content of the message. The previous messages are used to provide context 
+for the model to generate responses.
+----
