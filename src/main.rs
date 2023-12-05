@@ -1,8 +1,6 @@
-pub mod conversation;
-pub mod personality;
-
-use conversation::{Conversation, Message};
-use personality::Personality;
+use morpha::conversation::{Conversation, Message};
+use morpha::database;
+use morpha::personality::Personality;
 
 use async_openai::{
     types::{
@@ -11,7 +9,6 @@ use async_openai::{
     },
     Client,
 };
-use rusqlite::Connection;
 use std::error::Error;
 use std::io::stdin;
 
@@ -47,13 +44,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let assistant_id = assistant.id;
 
     // Open database
-    let db = open_database(&db_path)?;
+    let db = database::open_database(&db_path)?;
 
     // Create conversation and write to database
     let conversation = Conversation {
         id: assistant_id.clone(),
         messages: Vec::new(),
-        msec: current_msec(),
+        msec: database::current_msec(),
     };
 
     // Initial greeting
@@ -110,9 +107,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .create(run_request)
             .await?;
 
-        // write new conversation to database
-        // let conversation = Conversation
-
         //wait for the run to complete
         let mut awaiting_response = true;
         let mut status_printed = false;
@@ -123,40 +117,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
             match run.status {
                 RunStatus::Completed => {
                     awaiting_response = false;
-                    // once the run is completed we
-                    // get the response from the run
-                    // which will be the first message
-                    // in the thread
 
-                    //retrieve the response from the run
                     let response = client.threads().messages(&thread.id).list(&query).await?;
-                    //get the message id from the response
                     let message_id = response.data.get(0).unwrap().id.clone();
-                    //get the message from the response
+                    // get the message, content from the response
                     let message = client
                         .threads()
                         .messages(&thread.id)
                         .retrieve(&message_id)
                         .await?;
-                    //get the content from the message
                     let content = message.content.get(0).unwrap();
-                    //get the text from the content
                     let text = match content {
                         MessageContent::Text(text) => text.text.value.clone(),
                         MessageContent::ImageFile(_) => {
                             panic!("images are not supported in the terminal")
                         }
                     };
+
                     // print the response
                     println!(); // reset cursor after progress output
-                    println!(); // start at first column
+                    println!(); // newline for readability
                     personality.respond(&text);
-                    println!(); // I like readability
+                    println!(); // I really like readability
 
                     // Write the prompt and response to database
                     let msg = Message {
                         conversation_id: conversation.id.clone(),
-                        msec: current_msec(),
+                        msec: database::current_msec(),
                         prompt: input.clone(),
                         response: text.clone(),
                     };
@@ -201,36 +188,4 @@ async fn main() -> Result<(), Box<dyn Error>> {
     client.threads().delete(&thread.id).await?;
 
     Ok(())
-}
-
-/// Get the current time in milliseconds
-fn current_msec() -> f64 {
-    let now = std::time::SystemTime::now();
-    let since_the_epoch = now.duration_since(std::time::UNIX_EPOCH).unwrap();
-    since_the_epoch.as_millis() as f64
-}
-
-/// Open an SQLite database
-fn open_database(path: &str) -> rusqlite::Result<Connection> {
-    let db = Connection::open(path)?;
-    write_schema(&db, include_str!("schema.sql"))?;
-    Ok(db)
-}
-
-/// Write the database schema
-fn write_schema(conn: &Connection, schema: &str) -> rusqlite::Result<()> {
-    conn.execute_batch(schema)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_personality_speak() {
-        let personality = Personality::new("Morpha", "");
-        personality.respond(
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum sodales risus ipsum, ac sagittis sem dignissim nec. Etiam non euismod orci. Integer in metus a lacus malesuada placerat eu id nisi. Donec ut volutpat justo. Aenean vehicula imperdiet eros, ac aliquet urna placerat at. Nullam nec mattis nulla. Integer mattis nec nulla nec efficitur. Cras lacinia, ligula ac ullamcorper maximus, nunc mi ultrices nisl, eu dapibus libero nisl sed felis. In risus magna, lobortis in nisl in, vulputate porta nunc. Sed vel dapibus est."
-        );
-    }
 }

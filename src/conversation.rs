@@ -41,3 +41,72 @@ impl Message {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::database;
+
+    // return an in-memory database connection
+    fn setup() -> Result<Connection, rusqlite::Error> {
+        let db = Connection::open_in_memory()?;
+        database::write_schema(&db, include_str!("schema.sql"))?;
+        Ok(db)
+    }
+
+    #[test]
+    fn test_conversation_write_to_database() {
+        let db = setup().unwrap();
+        let conversation = Conversation {
+            id: "asst_7pF0CU0GNsBodf5XsVCcopFw".to_string(),
+            messages: Vec::new(),
+            msec: 0.0,
+        };
+        let message = Message {
+            conversation_id: conversation.id.clone(),
+            msec: 0.0,
+            prompt: "What does Lorem Ipsum mean?".to_string(),
+            response: "It doesn't mean anything, you idiot!".to_string(),
+        };
+        conversation.write_to_database(&db).unwrap();
+        message.write_to_database(&db).unwrap();
+
+        // verify conversation data
+        let mut stmt = db.prepare("SELECT id, msec FROM conversations").unwrap();
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0).unwrap(),
+                    row.get::<_, f64>(1).unwrap(),
+                ))
+            })
+            .unwrap();
+        for row in rows {
+            let row = row.unwrap();
+            assert_eq!(row.0, conversation.id);
+            assert_eq!(row.1, conversation.msec);
+        }
+
+        // verify message data
+        let mut stmt = db
+            .prepare("SELECT conversation_id, msec, prompt, response FROM messages")
+            .unwrap();
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0).unwrap(),
+                    row.get::<_, f64>(1).unwrap(),
+                    row.get::<_, String>(2).unwrap(),
+                    row.get::<_, String>(3).unwrap(),
+                ))
+            })
+            .unwrap();
+        for row in rows {
+            let row = row.unwrap();
+            assert_eq!(row.0, message.conversation_id);
+            assert_eq!(row.1, message.msec);
+            assert_eq!(row.2, message.prompt);
+            assert_eq!(row.3, message.response);
+        }
+    }
+}
