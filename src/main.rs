@@ -1,3 +1,9 @@
+pub mod conversation;
+pub mod personality;
+
+use conversation::{Conversation, Message};
+use personality::Personality;
+
 use async_openai::{
     types::{
         CreateAssistantRequestArgs, CreateMessageRequestArgs, CreateRunRequestArgs,
@@ -5,56 +11,18 @@ use async_openai::{
     },
     Client,
 };
+use rusqlite::Connection;
 use std::error::Error;
 use std::io::stdin;
-
-/// A personality that we can customize
-struct Personality {
-    name: String,
-    instructions: String, // read from markdown
-}
-
-impl Personality {
-    /// Create a new personality.
-    fn new(name: &str, instructions: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            instructions: instructions.to_string(),
-        }
-    }
-
-    /// Short message without wrapping
-    fn speak(&self, message: &str) {
-        println!("{}: {}", self.name, message);
-    }
-
-    /// Speak with the appropriate name prefix.
-    fn respond(&self, message: &str) {
-        const MAX_CHARS: usize = 80;
-        // split the message at whitespace and fold into readable lines
-        let mut lines = Vec::new();
-        let mut line = String::new();
-        for word in message.split_whitespace() {
-            if line.chars().count() + word.chars().count() + 1 > MAX_CHARS {
-                lines.push(line);
-                line = String::new();
-            }
-            line.push_str(word);
-            line.push(' ');
-        }
-        if line.chars().count() > 0 {
-            lines.push(line);
-        }
-        println!("{}", lines.join("\n"));
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = std::env::args().collect::<Vec<_>>();
 
     let home = std::env::var("HOME")?;
+    let db_path = format!("{}/.morpha.sqlite3", home);
     let mut personality_profile_path = format!("{}/.morpha_profile", home);
+
     // read personality data from file
     if let Some(path) = args.get(1) {
         personality_profile_path = path.clone();
@@ -77,6 +45,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let assistant = client.assistants().create(assistant_request).await?;
     let assistant_id = assistant.id;
+
+    // Open database
+    let db = open_database(&db_path)?;
+
+    // Create conversation and write to database
+    let conversation = Conversation {
+        id: assistant_id.clone(),
+        messages: Vec::new(),
+        msec: current_msec(),
+    };
+    conversation.write_to_database(&db)?;
 
     // Initial greeting
     personality.speak("How may I assist you?");
@@ -125,6 +104,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .create(run_request)
             .await?;
 
+        // write new conversation to database
+        // let conversation = Conversation
+
         //wait for the run to complete
         let mut awaiting_response = true;
         let mut status_printed = false;
@@ -156,7 +138,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     let text = match content {
                         MessageContent::Text(text) => text.text.value.clone(),
                         MessageContent::ImageFile(_) => {
-                            panic!("imaged are not supported in the terminal")
+                            panic!("images are not supported in the terminal")
                         }
                     };
                     // print the response
@@ -164,6 +146,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     println!(); // start at first column
                     personality.respond(&text);
                     println!(); // I like readability
+
+                    // Write the prompt and response to database
+                    let msg = Message {
+                        conversation_id: conversation.id.clone(),
+                        msec: current_msec(),
+                        prompt: input.clone(),
+                        response: text.clone(),
+                    };
+                    msg.write_to_database(&db)?;
                 }
                 RunStatus::Failed => {
                     awaiting_response = false;
@@ -204,6 +195,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
     client.threads().delete(&thread.id).await?;
 
     Ok(())
+}
+
+/// Get the current time in milliseconds
+fn current_msec() -> f64 {
+    let now = std::time::SystemTime::now();
+    let since_the_epoch = now.duration_since(std::time::UNIX_EPOCH).unwrap();
+    since_the_epoch.as_millis() as f64
+}
+
+/// Open an SQLite database
+fn open_database(path: &str) -> rusqlite::Result<Connection> {
+    let db = Connection::open(path)?;
+    write_schema(&db, include_str!("schema.sql"))?;
+    Ok(db)
+}
+
+/// Write the database schema
+fn write_schema(conn: &Connection, schema: &str) -> rusqlite::Result<()> {
+    conn.execute_batch(schema)
 }
 
 #[cfg(test)]
