@@ -55,13 +55,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         messages: Vec::new(),
         msec: current_msec(),
     };
-    conversation.write_to_database(&db)?;
 
     // Initial greeting
     personality.speak("How may I assist you?");
     println!(); // I like readability
 
     // MAIN LOOP
+    let mut first_run = true;
     loop {
         // show data prompt read user input
         eprint!("> ");
@@ -69,6 +69,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         stdin().read_line(&mut input).unwrap();
         if input.is_empty() {
             continue;
+        }
+        // Write the conversation only after valid input has been obtained.
+        // Otherwise, we will have empty conversations when user input is cancelled.
+        if first_run {
+            first_run = false;
+            conversation.write_to_database(&db)?;
         }
 
         input = input.trim().to_string();
