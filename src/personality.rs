@@ -46,8 +46,6 @@ mod tests {
     #[test]
     fn test_personality_speak() {
         let personality = Personality::new("Morpha", "");
-        personality.respond(
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum sodales risus ipsum, ac sagittis sem dignissim nec. Etiam non euismod orci. Integer in metus a lacus malesuada placerat eu id nisi. Donec ut volutpat justo. Aenean vehicula imperdiet eros, ac aliquet urna placerat at. Nullam nec mattis nulla. Integer mattis nec nulla nec efficitur. Cras lacinia, ligula ac ullamcorper maximus, nunc mi ultrices nisl, eu dapibus libero nisl sed felis. In risus magna, lobortis in nisl in, vulputate porta nunc. Sed vel dapibus est."
-        );
+        personality.respond(include_str!("../data/lorem_ipsum.txt"));
     }
 }

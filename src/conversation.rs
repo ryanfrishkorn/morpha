@@ -75,16 +75,17 @@ mod tests {
         let mut stmt = db.prepare("SELECT id, msec FROM conversations").unwrap();
         let rows = stmt
             .query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0).unwrap(),
-                    row.get::<_, f64>(1).unwrap(),
-                ))
+                Ok(Conversation {
+                    id: row.get(0).unwrap(),
+                    messages: Vec::new(),
+                    msec: row.get(1).unwrap(),
+                })
             })
             .unwrap();
         for row in rows {
-            let row = row.unwrap();
-            assert_eq!(row.0, conversation.id);
-            assert_eq!(row.1, conversation.msec);
+            let c = row.unwrap();
+            assert_eq!(c.id, conversation.id);
+            assert_eq!(c.msec, conversation.msec);
         }
 
         // verify message data
