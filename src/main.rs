@@ -9,15 +9,27 @@ use async_openai::{
     },
     Client,
 };
+use clap::Parser;
 use std::error::Error;
 use std::io::stdin;
 
+#[derive(Parser)]
+struct Config {
+    #[arg(long, default_value = "gpt-3.5-turbo-1106")]
+    model: String,
+    #[arg(long, default_value = "")]
+    db_path: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let mut config = Config::parse();
     let args = std::env::args().collect::<Vec<_>>();
 
     let home = std::env::var("HOME")?;
-    let db_path = format!("{}/.morpha.sqlite3", home);
+    if config.db_path.is_empty() {
+        config.db_path = format!("{}/.morpha.sqlite3", home);
+    }
     let mut personality_profile_path = format!("{}/.morpha_profile", home);
 
     // read personality data from file
@@ -37,14 +49,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let assistant_request = CreateAssistantRequestArgs::default()
         .name(&personality.name)
         .instructions(&personality.instructions)
-        .model("gpt-3.5-turbo-1106")
+        .model(&config.model)
         .build()?;
 
     let assistant = client.assistants().create(assistant_request).await?;
     let assistant_id = assistant.id;
 
     // Open database
-    let db = database::open_database(&db_path)?;
+    let db = database::open_database(&config.db_path)?;
 
     // Create conversation and write to database
     let conversation = Conversation {
