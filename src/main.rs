@@ -80,11 +80,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         if input.is_empty() {
             continue;
         }
-        // Write the conversation only after valid input has been obtained.
-        // Otherwise, we will have empty conversations when user input is cancelled.
-        if first_run {
-            conversation.write_to_database(&db)?;
-        }
 
         input = input.trim().to_string();
         match input.as_str() {
@@ -156,6 +151,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     personality.respond(&text);
                     println!(); // I really like readability
 
+                    // Write the conversation only after valid input and response has been obtained.
+                    // Otherwise, we will have empty conversations when user input is cancelled.
+                    if first_run {
+                        conversation.write_to_database(&db)?;
+                    }
                     // Write the prompt and response to database
                     let msg = Message {
                         conversation_id: conversation.id.clone(),

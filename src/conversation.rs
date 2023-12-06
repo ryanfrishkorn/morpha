@@ -94,20 +94,19 @@ mod tests {
             .unwrap();
         let rows = stmt
             .query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0).unwrap(),
-                    row.get::<_, f64>(1).unwrap(),
-                    row.get::<_, String>(2).unwrap(),
-                    row.get::<_, String>(3).unwrap(),
-                ))
+                Ok(Message {
+                    conversation_id: row.get(0)?,
+                    msec: row.get(1)?,
+                    prompt: row.get(2)?,
+                    response: row.get(3)?,
+                })
             })
             .unwrap();
-        for row in rows {
-            let row = row.unwrap();
-            assert_eq!(row.0, message.conversation_id);
-            assert_eq!(row.1, message.msec);
-            assert_eq!(row.2, message.prompt);
-            assert_eq!(row.3, message.response);
+        for row in rows.into_iter().map(|r| r.unwrap()) {
+            assert_eq!(row.conversation_id, message.conversation_id);
+            assert_eq!(row.msec, message.msec);
+            assert_eq!(row.prompt, message.prompt);
+            assert_eq!(row.response, message.response);
         }
     }
 }
