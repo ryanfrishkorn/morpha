@@ -15,30 +15,31 @@ use std::io::stdin;
 
 #[derive(Parser)]
 struct Config {
+    /// OpenAI model name
     #[arg(long, default_value = "gpt-3.5-turbo-1106")]
     model: String,
+    /// SQLite database path
     #[arg(long, default_value = "")]
     db_path: String,
+    /// One response only, exits after first response.
+    #[arg(long, default_value_t = false)]
+    one: bool,
+    #[arg(long, default_value = "")]
+    profile: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let mut config = Config::parse();
-    let args = std::env::args().collect::<Vec<_>>();
 
     let home = std::env::var("HOME")?;
     if config.db_path.is_empty() {
         config.db_path = format!("{}/.morpha.sqlite3", home);
     }
-    let mut personality_profile_path = format!("{}/.morpha_profile", home);
-
-    // read personality data from file
-    if let Some(path) = args.get(1) {
-        personality_profile_path = path.clone();
+    if config.profile.is_empty() {
+        config.profile = format!("{}/.morpha_profile", home);
     }
-    let personality_profile_path = personality_profile_path; // freezing is good
-
-    let personality_profile = std::fs::read_to_string(personality_profile_path)?;
+    let personality_profile = std::fs::read_to_string(config.profile)?;
     let personality = Personality::new("Morpha", &personality_profile);
 
     let client = Client::new();
@@ -71,7 +72,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // MAIN LOOP
     let mut first_run = true;
-    loop {
+    'main: loop {
         // show data prompt read user input
         eprint!("> ");
         let mut input = String::new();
@@ -82,7 +83,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Write the conversation only after valid input has been obtained.
         // Otherwise, we will have empty conversations when user input is cancelled.
         if first_run {
-            first_run = false;
             conversation.write_to_database(&db)?;
         }
 
@@ -164,6 +164,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         response: text.clone(),
                     };
                     msg.write_to_database(&db)?;
+
+                    // Exit if one response is requested
+                    if config.one {
+                        break 'main;
+                    }
                 }
                 RunStatus::Failed => {
                     awaiting_response = false;
@@ -197,6 +202,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // std::thread::sleep(std::time::Duration::from_secs(1));
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
+        first_run = false;
     }
 
     // remove assistant and threads
