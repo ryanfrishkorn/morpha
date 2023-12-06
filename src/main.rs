@@ -88,7 +88,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         input = input.trim().to_string();
         match input.as_str() {
-            "" => continue, // ignore empty line
+            "" => {
+                // ignore empty line and print exit instructions
+                println!("q/quit/exit to leave application\n");
+                continue;
+            }
             "q" => break,
             "quit" => break,
             "exit" => break,
