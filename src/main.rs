@@ -15,9 +15,9 @@ use std::io::stdin;
 
 #[derive(Parser)]
 #[command(about = "A ChatGPT assistant with SQLite archiving of conversations")]
-#[command(author, version)]
+#[command(author, version = env!("CARGO_PKG_VERSION"), before_help = env!("GIT_HASH"))]
 #[command(
-    help_template = "{name} Version: {version} \n{author} \n{about-section}\n{usage-heading} {usage} \n{all-args} {tab}"
+    help_template = "{name} version: {version} \n{author} \n{about-section}\nbuild: {before-help}{usage-heading} {usage} \n{all-args} {tab}"
 )]
 struct Config {
     /// OpenAI model name

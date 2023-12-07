@@ -1,4 +1,5 @@
 [package]
+build = "src/build.rs"
 description = "A ChatGPT assistant with SQLite archiving of conversations"
 authors = ["Ryan Frishkorn <ryan@bluerift.io>"]
 name = "morpha"
