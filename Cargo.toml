@@ -1,4 +1,6 @@
 [package]
+description = "A ChatGPT assistant with SQLite archiving of conversations"
+authors = ["Ryan Frishkorn <ryan@bluerift.io>"]
 name = "morpha"
 version = "0.1.0"
 edition = "2021"

@@ -14,6 +14,11 @@ use std::error::Error;
 use std::io::stdin;
 
 #[derive(Parser)]
+#[command(about = "A ChatGPT assistant with SQLite archiving of conversations")]
+#[command(author, version)]
+#[command(
+    help_template = "{name} Version: {version} \n{author} \n{about-section}\n{usage-heading} {usage} \n{all-args} {tab}"
+)]
 struct Config {
     /// OpenAI model name
     #[arg(long, default_value = "gpt-3.5-turbo-1106")]
@@ -199,7 +204,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
             //wait for 1 second before checking the status again
-            // std::thread::sleep(std::time::Duration::from_secs(1));
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
         first_run = false;
