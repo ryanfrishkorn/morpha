@@ -13,12 +13,16 @@ use clap::Parser;
 use std::error::Error;
 use std::io::stdin;
 
+const CLAP_HELP: &str = r#"{name} version: {version}
+{author}
+{about-section}
+build: {before-help}{usage-heading} {usage}
+{all-args} {tab}"#;
+
 #[derive(Parser)]
 #[command(about = "A ChatGPT assistant with SQLite archiving of conversations")]
 #[command(author, version = env!("CARGO_PKG_VERSION"), before_help = env!("GIT_HASH"))]
-#[command(
-    help_template = "{name} version: {version} \n{author} \n{about-section}\nbuild: {before-help}{usage-heading} {usage} \n{all-args} {tab}"
-)]
+#[command(help_template = CLAP_HELP)]
 struct Config {
     /// OpenAI model name
     #[arg(long, default_value = "gpt-3.5-turbo-1106")]
