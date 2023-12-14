@@ -1,5 +1,6 @@
 use morpha::conversation::{Conversation, Message};
 use morpha::database;
+use morpha::personality::Mode::{Interactive, NonInteractive};
 use morpha::personality::Personality;
 
 use async_openai::{
@@ -11,7 +12,7 @@ use async_openai::{
 };
 use clap::Parser;
 use std::error::Error;
-use std::io::stdin;
+use std::io::{stdin, IsTerminal, Read};
 
 const CLAP_HELP: &str = r#"{name} version: {version}
 {author}
@@ -30,9 +31,9 @@ struct Config {
     /// SQLite database path
     #[arg(long, default_value = "")]
     db_path: String,
-    /// One response only, exits after first response.
     #[arg(long, default_value_t = false)]
-    one: bool,
+    /// Do not archive conversation in database
+    no_archive: bool,
     #[arg(long, default_value = "")]
     profile: String,
 }
@@ -49,12 +50,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         config.profile = format!("{}/.morpha_profile", home);
     }
     let personality_profile = std::fs::read_to_string(config.profile)?;
-    let personality = Personality::new("Morpha", &personality_profile);
+    let mut personality = Personality::new("Morpha", &personality_profile);
     let mut status = Status::new();
-    // suppress status messages for a singular answer
-    if config.one {
-        status.silent = true;
-    }
 
     let client = Client::new();
     let query = [("limit", "1")]; //limit the list responses to 1 message
@@ -80,8 +77,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         msec: database::current_msec(),
     };
 
-    // Initial greeting
-    if !config.one {
+    // Determine whether input has been piped to stdin or an interactive terminal is present
+    if stdin().is_terminal() {
+        personality.mode = Interactive;
+        status.silent = false;
+
+        // Initial greeting
         personality.speak("How may I assist you?");
         status.print("\n");
     }
@@ -92,12 +93,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // show data prompt read user input
         status.print("> ");
         let mut input = String::new();
-        stdin().read_line(&mut input).unwrap();
+
+        // in the case of non-interactive session, read all lines from standard input
+        match personality.mode {
+            Interactive => {
+                stdin().read_line(&mut input).unwrap();
+            }
+            NonInteractive => {
+                stdin().read_to_string(&mut input).unwrap();
+            }
+        }
+        input = input.trim().to_string();
         if input.is_empty() {
             continue;
         }
 
-        input = input.trim().to_string();
         match input.as_str() {
             "" => {
                 // ignore empty line and print exit instructions
@@ -136,7 +146,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         //wait for the run to complete
         let mut awaiting_response = true;
-        let mut status_previous: RunStatus = RunStatus::InProgress;
+        let mut status_previous: Option<RunStatus> = None;
         while awaiting_response {
             let run = client.threads().runs(&thread.id).retrieve(&run.id).await?;
 
@@ -169,21 +179,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                     // Write the conversation only after valid input and response has been obtained.
                     // Otherwise, we will have empty conversations when user input is cancelled.
-                    // Responses are written on all iterations.
-                    if first_run {
+                    if first_run && !config.no_archive {
                         conversation.write_to_database(&db)?;
                     }
-                    // Write the prompt and response to database
-                    let msg = Message {
-                        conversation_id: conversation.id.clone(),
-                        msec: database::current_msec(),
-                        prompt: input.clone(),
-                        response: text.clone(),
-                    };
-                    msg.write_to_database(&db)?;
 
-                    // Exit if one response is requested
-                    if config.one {
+                    // Write the prompt and response to database
+                    if !config.no_archive {
+                        let msg = Message {
+                            conversation_id: conversation.id.clone(),
+                            msec: database::current_msec(),
+                            prompt: input.clone(),
+                            response: text.clone(),
+                        };
+                        msg.write_to_database(&db)?;
+                    }
+
+                    // exit if one response is requested
+                    if let NonInteractive = personality.mode {
                         break 'main;
                     }
                 }
@@ -207,14 +219,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     status.print("--- Run Requires Action");
                 }
                 RunStatus::InProgress => {
-                    if status_previous == RunStatus::InProgress {
+                    if status_previous.is_none() {
                         status.print("--- Waiting for response...");
-                    } else {
+                    } else if let Some(RunStatus::InProgress) = status_previous {
                         status.print(".");
                     }
                 }
             }
-            status_previous = run.status;
+            status_previous = Some(run.status);
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
         first_run = false;
@@ -234,7 +246,7 @@ struct Status {
 impl Status {
     /// Creates a new `Status` struct for isolating system message output on stderr
     pub fn new() -> Self {
-        Self { silent: false }
+        Self { silent: true }
     }
 
     /// Print text to standard error

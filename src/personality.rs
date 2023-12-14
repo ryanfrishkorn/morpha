@@ -1,5 +1,6 @@
 /// A personality that we can customize
 pub struct Personality {
+    pub mode: Mode,
     pub name: String,
     pub instructions: String, // read from markdown
 }
@@ -9,6 +10,7 @@ impl Personality {
     pub fn new(name: &str, instructions: &str) -> Self {
         Self {
             name: name.to_string(),
+            mode: Mode::NonInteractive,
             instructions: instructions.to_string(),
         }
     }
@@ -37,6 +39,13 @@ impl Personality {
         }
         println!("{}", lines.join("\n"));
     }
+}
+
+/// Mode of interaction for the assistant
+#[derive(Debug)]
+pub enum Mode {
+    Interactive,
+    NonInteractive,
 }
 
 #[cfg(test)]
