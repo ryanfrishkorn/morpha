@@ -136,11 +136,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         //wait for the run to complete
         let mut awaiting_response = true;
-        let mut status_printed = false;
+        let mut status_previous: RunStatus = RunStatus::InProgress;
         while awaiting_response {
-            //retrieve the run
             let run = client.threads().runs(&thread.id).retrieve(&run.id).await?;
-            //check the status of the run
+
+            // periodically check status
             match run.status {
                 RunStatus::Completed => {
                     awaiting_response = false;
@@ -169,6 +169,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                     // Write the conversation only after valid input and response has been obtained.
                     // Otherwise, we will have empty conversations when user input is cancelled.
+                    // Responses are written on all iterations.
                     if first_run {
                         conversation.write_to_database(&db)?;
                     }
@@ -206,16 +207,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     status.print("--- Run Requires Action");
                 }
                 RunStatus::InProgress => {
-                    if !status_printed {
+                    if status_previous == RunStatus::InProgress {
                         status.print("--- Waiting for response...");
-                        status_printed = true;
                     } else {
                         status.print(".");
                     }
                 }
             }
-            //wait for 1 second before checking the status again
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            status_previous = run.status;
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
         first_run = false;
     }
