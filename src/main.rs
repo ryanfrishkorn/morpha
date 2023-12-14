@@ -50,6 +50,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     let personality_profile = std::fs::read_to_string(config.profile)?;
     let personality = Personality::new("Morpha", &personality_profile);
+    let mut status = Status::new();
+    // suppress status messages for a singular answer
+    if config.one {
+        status.silent = true;
+    }
 
     let client = Client::new();
     let query = [("limit", "1")]; //limit the list responses to 1 message
@@ -76,14 +81,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     // Initial greeting
-    personality.speak("How may I assist you?");
-    println!(); // I like readability
+    if !config.one {
+        personality.speak("How may I assist you?");
+        status.print("\n");
+    }
 
     // MAIN LOOP
     let mut first_run = true;
     'main: loop {
         // show data prompt read user input
-        eprint!("> ");
+        status.print("> ");
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
         if input.is_empty() {
@@ -94,7 +101,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         match input.as_str() {
             "" => {
                 // ignore empty line and print exit instructions
-                println!("q/quit/exit to leave application\n");
+                status.print("q/quit/exit to leave application\n");
                 continue;
             }
             "q" => break,
@@ -102,7 +109,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "exit" => break,
             _ => (),
         }
-        println!(); // I like readability
+        status.print("\n"); // I like readability
 
         //create a message for the thread
         let message = CreateMessageRequestArgs::default()
@@ -155,10 +162,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     };
 
                     // print the response
-                    println!(); // reset cursor after progress output
-                    println!(); // newline for readability
+                    status.print("\n"); // reset cursor after progress output
+                    status.print("\n"); // newline for readability
                     personality.respond(&text);
-                    println!(); // I really like readability
+                    status.print("\n"); // I really like readability
 
                     // Write the conversation only after valid input and response has been obtained.
                     // Otherwise, we will have empty conversations when user input is cancelled.
@@ -181,29 +188,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
                 RunStatus::Failed => {
                     awaiting_response = false;
-                    eprintln!("--- Run Failed: {:#?}", run);
+                    status.print(&format!("--- Run Failed: {:#?}", run));
                 }
                 RunStatus::Queued => {
-                    eprintln!("--- Run Queued");
+                    status.print("--- Run Queued");
                 }
                 RunStatus::Cancelling => {
-                    eprintln!("--- Run Cancelling");
+                    status.print("--- Run Cancelling");
                 }
                 RunStatus::Cancelled => {
-                    eprintln!("--- Run Cancelled");
+                    status.print("--- Run Cancelled");
                 }
                 RunStatus::Expired => {
-                    eprintln!("--- Run Expired");
+                    status.print("--- Run Expired");
                 }
                 RunStatus::RequiresAction => {
-                    eprintln!("--- Run Requires Action");
+                    status.print("--- Run Requires Action");
                 }
                 RunStatus::InProgress => {
                     if !status_printed {
-                        eprint!("--- Waiting for response...");
+                        status.print("--- Waiting for response...");
                         status_printed = true;
                     } else {
-                        eprint!(".");
+                        status.print(".");
                     }
                 }
             }
@@ -218,4 +225,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     client.threads().delete(&thread.id).await?;
 
     Ok(())
+}
+
+struct Status {
+    pub silent: bool,
+}
+
+impl Status {
+    /// Creates a new `Status` struct for isolating system message output on stderr
+    pub fn new() -> Self {
+        Self { silent: false }
+    }
+
+    /// Print text to standard error
+    pub fn print(&self, text: &str) {
+        if self.silent {
+            return;
+        }
+        eprint!("{}", text);
+    }
 }
