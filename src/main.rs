@@ -174,7 +174,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     // print the response
                     status.print("\n"); // reset cursor after progress output
                     status.print("\n"); // newline for readability
-                    personality.respond(&text);
+                    personality.speak(&text);
                     status.print("\n"); // I really like readability
 
                     // Write the conversation only after valid input and response has been obtained.
