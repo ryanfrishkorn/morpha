@@ -1,9 +1,11 @@
+const MAX_CHARS_DEFAULT: usize = 80;
+
 /// A personality that we can customize
 pub struct Personality {
     pub mode: Mode,
     pub name: String,
     pub instructions: String, // read from markdown
-    pub wrap_chars: usize,
+    pub max_chars: Option<usize>,
 }
 
 impl Personality {
@@ -13,7 +15,7 @@ impl Personality {
             name: name.to_string(),
             mode: Mode::NonInteractive,
             instructions: instructions.to_string(),
-            wrap_chars: 80,
+            max_chars: Some(MAX_CHARS_DEFAULT),
         }
     }
 
@@ -39,7 +41,13 @@ impl Personality {
                         output.push(line.to_string());
                     } else {
                         speech.push(line.to_string());
-                        output.push(self.split_at_word(line));
+                        output.push(
+                            // wrap lines based on personality config
+                            match self.max_chars {
+                                Some(_) => self.split_at_word(line),
+                                None => line.to_string(),
+                            },
+                        );
                     }
                 }
                 true => {
@@ -81,18 +89,18 @@ impl Personality {
         println!("{}: {}", self.name, message);
     }
 
-    /// Speak wrapping words based on `wrap_chars`
-    pub fn speak_wrap(&self, message: &str) {
-        println!("{}", self.split_at_word(message));
-    }
-
-    /// Split `message` into lines at whitespace using `wrap_chars`
+    /// Split `message` into lines at whitespace honoring `self.max_chars`
     fn split_at_word(&self, message: &str) -> String {
+        let max_chars: usize = match self.max_chars {
+            Some(v) => v,
+            None => return message.to_string(),
+        };
+
         // split the message at whitespace and fold into readable lines
         let mut lines = Vec::new();
         let mut line = String::new();
         for word in message.split_whitespace() {
-            if line.chars().count() + word.chars().count() + 1 > self.wrap_chars {
+            if line.chars().count() + word.chars().count() + 1 > max_chars {
                 lines.push(line);
                 line = String::new();
             }
@@ -118,12 +126,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_personality_speak_wrap() {
-        let personality = Personality::new("Morpha", "");
-        personality.speak_wrap(include_str!("../data/lorem_ipsum.txt"));
-    }
-
-    #[test]
     fn test_personality_speak() {
         let msg = r#"This is a response that is longer than the expected wrap character limit which is approximately 80.
 
@@ -143,5 +145,12 @@ Now, let me explain each line of code:
 
         let p = Personality::new("name", "You are an assistant");
         p.speak(msg);
+    }
+
+    #[test]
+    fn test_personality_split_at_word() {
+        let personality = Personality::new("Morpha", "");
+        let output = personality.split_at_word(include_str!("../data/lorem_ipsum.txt"));
+        assert_eq!(6, output.matches('\n').count()); // count newlines
     }
 }

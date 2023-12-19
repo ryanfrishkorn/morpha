@@ -29,13 +29,17 @@ struct Config {
     #[arg(long, default_value = "gpt-3.5-turbo-1106")]
     model: String,
     /// SQLite database path
-    #[arg(long, default_value = "")]
+    #[arg(long, required(false), default_value = "")]
     db_path: String,
     #[arg(long, default_value_t = false)]
     /// Do not archive conversation in database
     no_archive: bool,
-    #[arg(long, default_value = "")]
+    /// File path containing assistant instructions
+    #[arg(long, required(false), default_value = "")]
     profile: String,
+    /// Print output raw without line wrapping
+    #[arg(long, default_value_t = false)]
+    raw: bool,
 }
 
 #[tokio::main]
@@ -51,6 +55,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     let personality_profile = std::fs::read_to_string(config.profile)?;
     let mut personality = Personality::new("Morpha", &personality_profile);
+    if config.raw {
+        personality.max_chars = None;
+    }
     let mut status = Status::new();
 
     let client = Client::new();
