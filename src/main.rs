@@ -188,9 +188,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         }
                     };
 
-                    // print the response
-                    status.print("\n"); // reset cursor after progress output
-                    status.print("\n"); // newline for readability
+                    // print the response after clearing the status line
+                    status.clear_line();
                     personality.speak(&text);
                     status.print("\n"); // I really like readability
 
