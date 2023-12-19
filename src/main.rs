@@ -78,7 +78,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Open database
     let db = database::open_database(&config.db_path)?;
 
-    // Create conversation and write to database
+    // Create conversation
     let conversation = Conversation {
         id: assistant_id.clone(),
         messages: Vec::new(),
