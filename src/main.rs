@@ -2,6 +2,7 @@ use morpha::conversation::{Conversation, Message};
 use morpha::database;
 use morpha::personality::Mode::{Interactive, NonInteractive};
 use morpha::personality::Personality;
+use morpha::status::Status;
 
 use async_openai::{
     types::{
@@ -96,6 +97,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // MAIN LOOP
     let mut first_run = true;
+    let mut empty_commands = 0;
     'main: loop {
         // show data prompt read user input
         status.print("> ");
@@ -110,23 +112,31 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 stdin().read_to_string(&mut input).unwrap();
             }
         }
+
+        // ignore empty line and print exit instructions
         input = input.trim().to_string();
         if input.is_empty() {
+            empty_commands += 1;
+            // be nice
+            if empty_commands >= 2 {
+                status.print("/q, /quit, or /exit to leave application\n");
+            }
             continue;
         }
-
-        match input.as_str() {
-            "" => {
-                // ignore empty line and print exit instructions
-                status.print("q/quit/exit to leave application\n");
-                continue;
-            }
-            "q" => break,
-            "quit" => break,
-            "exit" => break,
-            _ => (),
-        }
+        empty_commands = 0; // reset
         status.print("\n"); // I like readability
+
+        // process custom commands
+        if input.starts_with('/') {
+            match input.as_str() {
+                "/q" => break,
+                "/quit" => break,
+                "/exit" => break,
+                _ => (),
+            }
+            run_command(&input)?;
+            continue;
+        }
 
         //create a message for the thread
         let message = CreateMessageRequestArgs::default()
@@ -246,21 +256,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-struct Status {
-    pub silent: bool,
+/// Parse command into Vector of strings before execution
+fn parse_command(command: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    println!("command: {}", command);
+    // split command from args
+    let args: Vec<String> = command.split_whitespace().map(|x| x.to_string()).collect();
+    Ok(args)
 }
 
-impl Status {
-    /// Creates a new `Status` struct for isolating system message output on stderr
-    pub fn new() -> Self {
-        Self { silent: true }
-    }
-
-    /// Print text to standard error
-    pub fn print(&self, text: &str) {
-        if self.silent {
-            return;
-        }
-        eprint!("{}", text);
-    }
+// Run morpha commands
+fn run_command(command: &str) -> Result<(), Box<dyn Error>> {
+    let cmd = parse_command(command)?;
+    println!("command parsed: {:?}", cmd);
+    Ok(())
 }
