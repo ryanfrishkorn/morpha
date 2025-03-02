@@ -140,7 +140,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         //create a message for the thread
         let message = CreateMessageRequestArgs::default()
-            .role("user")
             .content(input.clone())
             .build()?;
 
@@ -173,18 +172,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     awaiting_response = false;
 
                     let response = client.threads().messages(&thread.id).list(&query).await?;
-                    let message_id = response.data.get(0).unwrap().id.clone();
+                    let message_id = response.data.first().unwrap().id.clone();
                     // get the message, content from the response
                     let message = client
                         .threads()
                         .messages(&thread.id)
                         .retrieve(&message_id)
                         .await?;
-                    let content = message.content.get(0).unwrap();
+                    let content = message.content.first().unwrap();
                     let text = match content {
                         MessageContent::Text(text) => text.text.value.clone(),
                         MessageContent::ImageFile(_) => {
                             panic!("images are not supported in the terminal")
+                        }
+                        MessageContent::ImageUrl(_) => {
+                            panic!("image urls are not supported in the terminal")
+                        }
+                        MessageContent::Refusal(_) => {
+                            panic!("response generated a refusal")
                         }
                     };
 
@@ -214,6 +219,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     if let NonInteractive = personality.mode {
                         break 'main;
                     }
+                }
+                RunStatus::Incomplete => {
+                    panic!("Incomplete run status");
                 }
                 RunStatus::Failed => {
                     awaiting_response = false;
