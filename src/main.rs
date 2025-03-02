@@ -27,7 +27,7 @@ build: {before-help}{usage-heading} {usage}
 #[command(help_template = CLAP_HELP)]
 struct Config {
     /// OpenAI model name
-    #[arg(long, default_value = "gpt-3.5-turbo-1106")]
+    #[arg(long, default_value = "gpt-4-turbo")]
     model: String,
     /// SQLite database path
     #[arg(long, required(false), default_value = "")]
